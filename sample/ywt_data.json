@@ -1,0 +1,30 @@
+{ "object": "page",
+  "id": "29bedc5b-e3fc-4fe0-a006-59a1f101dcfe",
+  "created_time": "2023-11-27T05:16:00.000Z",
+  "last_edited_time": "2023-11-27T06:30:00.000Z",
+  "created_by": { "object": "user", "id": "60143913-1334-408b-a927-64e20b7fcdd4" },
+  "last_edited_by": { "object": "user", "id": "60143913-1334-408b-a927-64e20b7fcdd4" },
+  "cover": null,
+  "icon": { "type": "emoji", "emoji": "📭" },
+  "parent":
+   { "type": "database_id",
+     "database_id": "376394fc-6187-4083-8881-008cc332e842" },
+  "archived": false,
+  "properties":
+   { "Writer": { "id": "%3E~%5E%3F", "type": "people", "people": [Object] },
+     "Last edited by": { "id": "MALf", "type": "last_edited_by", "last_edited_by": [Object] },
+     "Created by": { "id": "SzsK", "type": "created_by", "created_by": [Object] },
+     "Last edited time":
+      { "id": "TWzK",
+        "type": "last_edited_time",
+        "last_edited_time": "2023-11-27T06:30:00.000Z" },
+     "いいね": { "id": "ai%3Aa", "type": "people", "people": [Object] },
+     "Date": { "id": "hgP%5D", "type": "date", "date": [Object] },
+     "Tags": { "id": "m%5D%7C%7B", "type": "select", "select": null },
+     "Created":
+      { "id": "%7DSW_",
+        "type": "created_time",
+        "created_time": "2023-11-27T05:16:00.000Z" },
+     "Name": { "id": "title", "type": "title", "title": [Object] } },
+  "url": "https://www.notion.so/_sagawa-29bedc5be3fc4fe0a00659a1f101dcfe",
+  "public_url": null }
