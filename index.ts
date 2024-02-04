@@ -1,22 +1,23 @@
 // 使うデータの型だけ定義
-type StampRallyResult = {
+type YwtResult = {
   properties: {
-    Interviewer: {
+    Writer: {
       people?: {
         id: string;
       }[];
     };
-    Interviewee: {
+    いいね: {
       people?: {
         id: string;
       }[];
     };
-    Date: {
-      date?: {
-        start: string;
-      };
+    Name: {
+      title?: {
+        plain_text: string;
+      }[];
     };
   };
+  url: string;
 };
 
 type MemberResult = {
@@ -38,12 +39,13 @@ type MemberResult = {
       checkbox: boolean;
     };
   };
-  interviewerCount: number;
-  intervieweeCount: number;
+  ywtTotalScore: number;
+  ywtCount: number;
+  url: string;
 };
 
-type StampRallyData = {
-  results: StampRallyResult[];
+type YwtData = {
+  results: YwtResult[];
   has_more: boolean;
   next_cursor: string | null;
 };
@@ -54,7 +56,7 @@ type MemberData = {
   next_cursor: string | null;
 };
 
-const START_ROW = 4;
+const START_ROW = 2;
 const START_COLUMN = 4;
 
 function getColName(num: number) {
@@ -62,14 +64,13 @@ function getColName(num: number) {
   return sheet.getRange(1, num).getA1Notation().replace(/\d/, "");
 }
 
-// スタンプラリーデータを取得
-const fetchStampRallyData = (option?: { filter: object }) => {
+// YWTデータを取得
+const fetchYwtData = (option?: { filter: object }) => {
   const token = PropertiesService.getScriptProperties().getProperty(
-    "TOKEN_1ON1_STAMPRALLY_MAP"
+    "TOKEN_YWT_GRASS_MAP"
   );
-  const databaseId = PropertiesService.getScriptProperties().getProperty(
-    "DATABASE_ID_1ON1_STAMPRALLY"
-  );
+  const databaseId =
+    PropertiesService.getScriptProperties().getProperty("DATABASE_ID_YWT");
   const url = `https://api.notion.com/v1/databases/${databaseId}/query`;
 
   const options = {
@@ -81,8 +82,8 @@ const fetchStampRallyData = (option?: { filter: object }) => {
     method: "post" as const,
   };
 
-  let results: StampRallyData["results"] = [];
-  let nextCursor: StampRallyData["next_cursor"] = null;
+  let results: YwtData["results"] = [];
+  let nextCursor: YwtData["next_cursor"] = null;
   do {
     const data = JSON.parse(
       UrlFetchApp.fetch(url, {
@@ -92,7 +93,7 @@ const fetchStampRallyData = (option?: { filter: object }) => {
           start_cursor: nextCursor ?? undefined,
         }),
       }).getContentText()
-    ) as StampRallyData;
+    ) as YwtData;
     results = [...results, ...data.results];
     nextCursor = data.next_cursor;
   } while (nextCursor);
@@ -103,7 +104,7 @@ const fetchStampRallyData = (option?: { filter: object }) => {
 // メンバーデータを取得
 const fetchMemberData = (option?: { filter: object }) => {
   const token = PropertiesService.getScriptProperties().getProperty(
-    "TOKEN_1ON1_STAMPRALLY_MAP"
+    "TOKEN_YWT_GRASS_MAP"
   );
   const databaseId =
     PropertiesService.getScriptProperties().getProperty("DATABASE_ID_MEMBER");
@@ -167,120 +168,155 @@ const fetchMemberData = (option?: { filter: object }) => {
     });
 };
 
+// 日付データを生成
+const createDateData = () => {
+  const date = new Date();
+
+  // 2023年1月1日からの今日までの日付の配列データを取得
+  // フォーマットはyyyy-MM-dd
+  const dateArray = [];
+
+  let dayCount = 0;
+  let targetDate = new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() - dayCount
+  );
+  // 2023年1月1日より前なら終了
+  while (targetDate.getTime() < new Date(2023, 0, 1).getTime()) {
+    dateArray.push(
+      Utilities.formatDate(targetDate, "Asia/Tokyo", "yyyy-MM-dd")
+    );
+    dayCount++;
+    targetDate = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate() - dayCount
+    );
+  }
+
+  for (let i = 0; i < 365; i++) {
+    const targetDate = new Date(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate() - i
+    );
+
+    // 2023年1月1日より前なら終了
+    if (targetDate.getTime() < new Date(2023, 0, 1).getTime()) break;
+
+    dateArray.push(
+      Utilities.formatDate(targetDate, "Asia/Tokyo", "yyyy-MM-dd")
+    );
+  }
+
+  return dateArray;
+};
+
 const init = () => {
   const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
 
-  // 出力対象のシートでなければ終了
-  if (sheet.getName() !== "星取表") {
+  if (sheet.getName() !== "YWTマップ") {
     const ui = SpreadsheetApp.getUi();
-    ui.alert("シート「星取表」で実行してください");
+    ui.alert("シート「YWTマップ」で実行してください");
     return;
   }
 
-  const stampRallyData = fetchStampRallyData();
+  const YwtData = fetchYwtData({
+    filter: {
+      timestamp: "created_time",
+      created_time: {
+        on_or_after: "2023-01-01",
+      },
+    },
+  });
   const memberData = fetchMemberData();
+  const dateData = createDateData();
 
   memberData.forEach((data) => {
-    data.interviewerCount = 0;
-    data.intervieweeCount = 0;
-  });
-
-  // スタンプラリーの組み合わせ配列を作成
-  const stampRallyArray = stampRallyData.map((data) => {
-    const interviewerId = data.properties.Interviewer.people?.at(0)?.id;
-    const intervieweeId = data.properties.Interviewee.people?.at(0)?.id;
-    const isDone =
-      data.properties.Date.date?.start !== null &&
-      data.properties.Date.date?.start !== undefined;
-    return {
-      interviewerId: interviewerId,
-      intervieweeId: intervieweeId,
-      isDone: isDone,
-    };
+    data.ywtTotalScore = 0;
+    data.ywtCount = 0;
   });
 
   // シートをクリア
   sheet.clearContents();
 
-  // 星取表の配列を作成
+  // YWTの配列を作成
   const memberLength = memberData.length;
+  const dateLength = dateData.length;
   for (let row = 0; row < memberLength; row++) {
-    const rowMember = memberData[row];
-    for (let column = 0; column < memberLength; column++) {
-      const columnMember = memberData[column];
-      if (row === column) {
+    const targetMember = memberData[row];
+    for (let column = 0; column < dateLength; column++) {
+      const targetDate = dateData[column];
+      // 該当するYWTがある場合、カウント
+      const targetYwt = YwtData.find(
+        (Ywt) =>
+          Ywt.properties.Name.title?.at(0)?.plain_text !== undefined &&
+          (Ywt.properties.Name.title?.at(0)?.plain_text as string).startsWith(
+            targetDate
+          ) &&
+          Ywt.properties.Writer.people?.at(0)?.id ===
+            targetMember.properties.アカウント.people?.at(0)?.id
+      );
+      if (targetYwt) {
+        const iineScore = targetYwt.properties.いいね.people?.length;
+        const ywtScore = iineScore ? iineScore + 1 : 1;
+        const ywtLink = targetYwt.url;
+        targetMember.ywtTotalScore += ywtScore;
+        targetMember.ywtCount += 1;
+        const link = `=HYPERLINK("${ywtLink}", ${ywtScore})`;
         sheet
           .getRange(
             `${getColName(column + START_COLUMN + 1)}${row + START_ROW + 2}`
           )
-          .setValue("-");
-      }
-      const targetInterviewerId =
-        rowMember.properties.アカウント.people?.at(0)?.id;
-      const targetIntervieweeId =
-        columnMember.properties.アカウント.people?.at(0)?.id;
-      // 該当するスタンプラリーがあり実施済み
-      if (
-        stampRallyArray.some(
-          (stampRally) =>
-            stampRally.interviewerId === targetInterviewerId &&
-            stampRally.intervieweeId === targetIntervieweeId &&
-            stampRally.isDone
-        )
-      ) {
-        memberData[row].interviewerCount = memberData[row].interviewerCount + 1;
-        memberData[column].intervieweeCount =
-          memberData[column].intervieweeCount + 1;
-        sheet
-          .getRange(
-            `${getColName(column + START_COLUMN + 1)}${row + START_ROW + 2}`
-          )
-          .setValue("◎");
-      }
-      // 該当するスタンプラリーがあり実施済み
-      if (
-        stampRallyArray.some(
-          (stampRally) =>
-            stampRally.interviewerId === targetInterviewerId &&
-            stampRally.intervieweeId === targetIntervieweeId &&
-            !stampRally.isDone
-        )
-      ) {
-        sheet
-          .getRange(
-            `${getColName(column + START_COLUMN + 1)}${row + START_ROW + 2}`
-          )
-          .setValue("予");
+          .setFormula(link);
       }
     }
   }
 
   // 行のメンバー一覧を描画
+  sheet.getRange(`A2`).setValue("社員番号");
+  sheet.getRange(`B2`).setValue("member");
+  sheet.getRange(`C2`).setValue("総スコア");
+  sheet.getRange(`D2`).setValue("提出数");
   for (let row = 0; row < memberLength; row++) {
     const rowMember = memberData[row];
+    const memberName = rowMember.properties.Name.title?.at(0)?.plain_text;
+    const memberLink = rowMember.url;
+    const link = `=HYPERLINK("${memberLink}", "${memberName}")`;
     sheet
-      .getRange(`${getColName(START_COLUMN)}${row + START_ROW + 2}`)
-      .setValue(rowMember.properties.Name.title?.at(0)?.plain_text);
-    sheet
-      .getRange(`${getColName(START_COLUMN - 1)}${row + START_ROW + 2}`)
+      .getRange(`${getColName(START_COLUMN - 3)}${row + START_ROW + 2}`)
       .setValue(rowMember.properties.社員番号.number);
     sheet
       .getRange(`${getColName(START_COLUMN - 2)}${row + START_ROW + 2}`)
-      .setValue(rowMember.interviewerCount);
+      .setFormula(link);
+    sheet
+      .getRange(`${getColName(START_COLUMN - 1)}${row + START_ROW + 2}`)
+      .setValue(rowMember.ywtTotalScore);
+    sheet
+      .getRange(`${getColName(START_COLUMN)}${row + START_ROW + 2}`)
+      .setValue(rowMember.ywtCount);
   }
-  // 列のメンバー一覧を描画
-  for (let column = 0; column < memberLength; column++) {
-    const columnMember = memberData[column];
+  // 列の日付一覧を描画
+  for (let column = 0; column < dateLength; column++) {
+    const targetDate = dateData[column];
     sheet
       .getRange(`${getColName(column + START_COLUMN + 1)}${START_ROW}`)
-      .setValue(columnMember.properties.Name.title?.at(0)?.plain_text);
-    sheet
-      .getRange(`${getColName(column + START_COLUMN + 1)}${START_ROW - 1}`)
-      .setValue(columnMember.properties.社員番号.number);
-    sheet
-      .getRange(`${getColName(column + START_COLUMN + 1)}${START_ROW - 2}`)
-      .setValue(columnMember.intervieweeCount);
+      .setValue(targetDate);
   }
+  // 古いfilterを削除
+  const oldFilter = sheet.getFilter();
+  if (oldFilter) oldFilter.remove();
+  // filterを新規設定
+  const filter = sheet
+    .getRange(
+      START_ROW + 1,
+      1,
+      memberLength + START_ROW,
+      dateLength + START_COLUMN
+    )
+    .createFilter();
+  filter.sort(START_COLUMN - 1, false);
 
   const date = new Date();
   sheet
@@ -289,16 +325,10 @@ const init = () => {
       "更新日時：" +
         Utilities.formatDate(date, "Asia/Tokyo", "yyyy-MM-dd HH:mm:ss")
     );
-  sheet.getRange(`D3`).setValue("社員番号");
-  sheet.getRange(`C4`).setValue("社員番号");
-  sheet.getRange(`B4`).setValue("もらったスタンプの数");
-  sheet.getRange(`D2`).setValue("あげたスタンプの数");
-  sheet.getRange(`D4`).setValue('=CHAR(HEX2DEC("1F4AE"))');
-  sheet.getRange(`D5`).setValue("interviewer");
 };
 
 const onOpen = () => {
-  SpreadsheetApp.getActiveSpreadsheet().addMenu("スタンプラリー表設定", [
+  SpreadsheetApp.getActiveSpreadsheet().addMenu("YWTマップ設定", [
     { name: "表を更新", functionName: "init" },
   ]);
 };
